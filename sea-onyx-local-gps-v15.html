@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SEA ONYX WI-FI — Status &amp; Starlink Zones</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  />
+  <style>
+    :root {
+      --glass-bg: rgba(236, 242, 248, 0.74);
+      --glass-border: rgba(255, 255, 255, 0.68);
+      --tile-bg: rgba(255, 255, 255, 0.76);
+      --tile-border: rgba(255, 255, 255, 0.88);
+      --ink: #111827;
+      --muted: #4b5563;
+      --primary-btn: #2563eb;
+      --primary-btn-hover: #1d4ed8;
+      --danger-btn: #ef4444;
+      --danger-btn-hover: #dc2626;
+      --pill-dark: #1f2937;
+      --overlay-red: #ef4444;
+      --current-blue: #2563eb;
+      --last-amber: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100dvh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      overflow-x: hidden;
+    }
+
+    .status-screen {
+      position: relative;
+      min-height: 100dvh;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 20px 12px calc(44px + env(safe-area-inset-bottom, 0px));
+      background-color: #6b9ec9;
+      background-image: url("bg.jpg");
+      background-position: center top;
+      background-repeat: no-repeat;
+      background-size: 100% auto;
+    }
+
+    .glass-status-card {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 410px;
+      min-width: 0;
+      margin: 0 auto;
+      background: var(--glass-bg);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--glass-border);
+      border-radius: 24px;
+      padding: 20px 16px 18px;
+      box-shadow: 0 22px 50px rgba(15, 23, 42, 0.25);
+    }
+
+    .status-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .status-header > div:first-child {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .wifi-label {
+      margin: 0;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #1e3a8a;
+    }
+
+    .greeting {
+      margin: 4px 0 0;
+      font-size: clamp(1.55rem, 6.2vw, 2rem);
+      line-height: 1.08;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: #0f172a;
+    }
+
+    .voucher-line {
+      margin: 6px 0 0;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #374151;
+    }
+
+    .voucher-num {
+      font-weight: 700;
+      color: #111827;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .right-badges {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .online-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #ffffff;
+      color: #059669;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+      white-space: nowrap;
+    }
+
+    .online-pill.is-offline {
+      color: #dc2626;
+    }
+
+    .online-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      flex-shrink: 0;
+    }
+
+    .online-pill.is-offline .online-dot {
+      background: #ef4444;
+    }
+
+    .track-map-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--pill-dark);
+      color: #ffffff;
+      border: none;
+      border-radius: 999px;
+      padding: 7px 13px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(17, 24, 39, 0.25);
+      transition: transform 0.12s ease, background-color 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .track-map-pill:hover {
+      background: #111827;
+    }
+
+    .track-map-pill:active {
+      transform: scale(0.98);
+    }
+
+    .metric-tiles {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+
+    .metric-tile {
+      min-width: 0;
+      background: var(--tile-bg);
+      border: 1px solid var(--tile-border);
+      border-radius: 16px;
+      padding: 12px;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+    }
+
+    .metric-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: #4b5563;
+      min-width: 0;
+    }
+
+    .metric-top > span:first-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .history-link {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #2563eb;
+      cursor: pointer;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .history-link:hover {
+      text-decoration: underline;
+    }
+
+    .metric-value {
+      margin-top: 6px;
+      font-size: clamp(0.84rem, 3.3vw, 1.02rem);
+      font-weight: 800;
+      color: #0f172a;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .session-meta-row {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.84rem;
+      color: #374151;
+      padding: 0 2px;
+      flex-wrap: wrap;
+    }
+
+    .session-meta-row strong {
+      color: #111827;
+      font-weight: 700;
+    }
+
+    .bottom-action-row {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+
+    .btn-usage {
+      min-width: 0;
+      background: var(--primary-btn);
+      color: #ffffff;
+      border: none;
+      border-radius: 14px;
+      padding: 12px 10px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(37, 99, 235, 0.28);
+      transition: background-color 0.15s ease, transform 0.1s ease;
+      white-space: nowrap;
+    }
+
+    .btn-usage:hover {
+      background: var(--primary-btn-hover);
+    }
+
+    .btn-logout {
+      min-width: 0;
+      background: var(--danger-btn);
+      color: #ffffff;
+      border: none;
+      border-radius: 14px;
+      padding: 12px 10px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(239, 68, 68, 0.28);
+      transition: background-color 0.15s ease, transform 0.1s ease;
+      white-space: nowrap;
+    }
+
+    .btn-logout:hover {
+      background: var(--danger-btn-hover);
+    }
+
+    .btn-usage:active,
+    .btn-logout:active {
+      transform: scale(0.98);
+    }
+
+    .usage-drawer {
+      margin-top: 12px;
+      background: rgba(255, 255, 255, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.92);
+      border-radius: 14px;
+      padding: 11px 13px;
+      font-size: 0.8rem;
+      color: #1f2937;
+      display: none;
+    }
+
+    .usage-drawer.is-open {
+      display: block;
+    }
+
+    .map-screen {
+      display: none;
+      min-height: 100dvh;
+      width: 100%;
+      padding: 20px 12px calc(44px + env(safe-area-inset-bottom, 0px));
+      background-color: #6b9ec9;
+      background-image: url("bg.jpg");
+      background-position: center top;
+      background-repeat: no-repeat;
+      background-size: 100% auto;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .map-screen.is-visible {
+      display: flex;
+    }
+
+    .status-screen.is-hidden {
+      display: none;
+    }
+
+    .map-card {
+      width: 100%;
+      max-width: 410px;
+      min-width: 0;
+      background: #ffffff;
+      border-radius: 24px;
+      padding: 20px 16px;
+      box-shadow: 0 22px 50px rgba(15, 23, 42, 0.28);
+    }
+
+    .map-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .map-card-title {
+      margin: 0;
+      font-size: 1.3rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #111827;
+    }
+
+    .map-card-sub {
+      margin: 3px 0 0;
+      font-size: 0.86rem;
+      color: #6b7280;
+    }
+
+    .close-circle {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      color: #4b5563;
+      font-size: 1.05rem;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .close-circle:hover {
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    .overlay-pill-btn {
+      margin-top: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--overlay-red);
+      color: #ffffff;
+      border: none;
+      border-radius: 999px;
+      padding: 9px 16px;
+      font-size: 0.86rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(239, 68, 68, 0.25);
+    }
+
+    .overlay-pill-btn.is-off {
+      background: #6b7280;
+      box-shadow: none;
+    }
+
+    .overlay-pill-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ffffff;
+    }
+
+    .map-btn-row {
+      margin-top: 12px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .map-action-btn {
+      background: #ffffff;
+      color: #111827;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      padding: 8px 14px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+
+    .map-action-btn:hover {
+      background: #f9fafb;
+    }
+
+    .map-action-btn.is-active {
+      background: #2563eb;
+      color: #ffffff;
+      border-color: #2563eb;
+    }
+
+    .map-box {
+      margin-top: 14px;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+      background: #1f2937;
+    }
+
+    #map {
+      width: 100%;
+      height: 295px;
+      z-index: 1;
+    }
+
+    .coord-pair {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .coord-panel {
+      min-width: 0;
+      border: 1px solid #e5e7eb;
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 11px 12px;
+    }
+
+    .coord-panel-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #6b7280;
+    }
+
+    .coord-panel-val {
+      margin-top: 4px;
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: #111827;
+      line-height: 1.35;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .map-legend {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: #374151;
+    }
+
+    .legend-entry {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .lg-current {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--current-blue);
+      box-shadow: 0 0 0 2px #bfdbfe;
+    }
+
+    .lg-last {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--last-amber);
+      box-shadow: 0 0 0 2px #fde68a;
+    }
+
+    .lg-track {
+      width: 16px;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--current-blue);
+    }
+
+    .lg-zone {
+      width: 13px;
+      height: 13px;
+      border-radius: 3px;
+      border: 2px solid var(--overlay-red);
+      background: rgba(239, 68, 68, 0.14);
+    }
+
+    .map-caption {
+      margin: 12px 0 0;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      color: #6b7280;
+    }
+
+    code {
+      background: #f3f4f6;
+      padding: 1px 4px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: #111827;
+    }
+  </style>
+</head>
+<body>
+  <div class="status-screen" id="statusScreen">
+    <section class="glass-status-card" aria-label="SEA ONYX WI-FI Status">
+      <div class="status-header">
+        <div>
+          <p class="wifi-label" id="wifiBrandLabel">SEA ONYX WI-FI</p>
+          <h1 class="greeting" id="greetingHeading">Hi, Arden!</h1>
+          <p class="voucher-line">Voucher: <span class="voucher-num" id="voucherVal">1943174</span></p>
+        </div>
+        <div class="right-badges">
+          <span class="online-pill" id="onlineBadge">
+            <span class="online-dot"></span>
+            <span id="onlineLabel">Online</span>
+          </span>
+          <button type="button" class="track-map-pill" id="openTrackMapBtn">Track &amp; Map &rsaquo;</button>
+        </div>
+      </div>
+
+      <div class="metric-tiles">
+        <div class="metric-tile">
+          <div class="metric-top">
+            <span>IP Address</span>
+            <button type="button" class="history-link" id="historyBtn">History &rsaquo;</button>
+          </div>
+          <div class="metric-value" id="ipDisplay">192.168.88.113</div>
+        </div>
+
+        <div class="metric-tile">
+          <div class="metric-top">
+            <span>Connected</span>
+          </div>
+          <div class="metric-value" id="connectedDisplay">7m53s</div>
+        </div>
+
+        <div class="metric-tile">
+          <div class="metric-top">
+            <span>Bytes Up / Down</span>
+          </div>
+          <div class="metric-value" id="bytesDisplay">1479.1 KiB/2.6 MiB</div>
+        </div>
+
+        <div class="metric-tile">
+          <div class="metric-top">
+            <span>Remaining Data</span>
+          </div>
+          <div class="metric-value" id="remainingDisplay">2.92 GB / 5.00 GB</div>
+        </div>
+      </div>
+
+      <div class="session-meta-row">
+        <span>Session: <strong id="sessionStateVal">Active</strong></span>
+        <span>GPS Mode: <strong id="refreshIntervalVal">Device Local</strong></span>
+      </div>
+
+      <div class="bottom-action-row">
+        <button type="button" class="btn-usage" id="dailyUsageBtn">Daily Usage</button>
+        <button type="button" class="btn-logout" id="logOutBtn">Log out</button>
+      </div>
+
+      <div class="usage-drawer" id="usageDrawer">
+        <strong>Session &amp; Usage Summary:</strong> <span id="usageSummaryText">Active voucher session on SEA ONYX WI-FI.</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="map-screen" id="mapScreen">
+    <section class="map-card" id="starlinkMapCard" aria-label="Position and Starlink Zones">
+      <div class="map-card-header">
+        <div>
+          <h2 class="map-card-title">Position &amp; Starlink Zones</h2>
+          <p class="map-card-sub" id="mapSubText">Local phone GPS only &bull; Tap Locate to fix position</p>
+        </div>
+        <button type="button" class="close-circle" id="backToStatusBtn" title="Back to status" aria-label="Back to status">&times;</button>
+      </div>
+
+      <button type="button" class="overlay-pill-btn" id="toggleStarlinkBtn" aria-pressed="true">
+        <span class="overlay-pill-dot"></span>
+        <span>Starlink Restricted Overlay</span>
+      </button>
+
+      <div class="map-btn-row">
+        <button type="button" class="map-action-btn" id="locateMapBtn">Locate</button>
+        <button type="button" class="map-action-btn" id="liveTrackBtn" aria-pressed="false">Live GPS: Off</button>
+        <button type="button" class="map-action-btn" id="fitTrackMapBtn">Fit Track</button>
+        <button type="button" class="map-action-btn" id="clearTrackBtn">Clear Track</button>
+      </div>
+
+      <div class="map-box">
+        <div id="map"></div>
+      </div>
+
+      <div class="coord-pair">
+        <div class="coord-panel">
+          <div class="coord-panel-label">Current Position</div>
+          <div class="coord-panel-val" id="currentCoordText">Waiting for<br />phone GPS...</div>
+        </div>
+        <div class="coord-panel">
+          <div class="coord-panel-label">Last Position</div>
+          <div class="coord-panel-val" id="lastCoordText">No previous<br />fix yet</div>
+        </div>
+      </div>
+
+      <div class="map-legend">
+        <span class="legend-entry"><span class="lg-current"></span>Current</span>
+        <span class="legend-entry"><span class="lg-last"></span>Last</span>
+        <span class="legend-entry"><span class="lg-track"></span>Track Line</span>
+        <span class="legend-entry"><span class="lg-zone"></span>Starlink Restricted</span>
+      </div>
+
+      <p class="map-caption">
+        Uses this phone's built-in GPS directly on an <code>https://</code> page and saves your local track
+        on your phone (zero cloud accounts, zero API keys, and zero request limits).
+      </p>
+    </section>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    crossorigin=""
+  ></script>
+  <script>
+    (function () {
+      const STORAGE_KEY = "sea_onyx_local_gps_v15";
+
+      const statusDefaults = {
+        brand: "SEA ONYX WI-FI",
+        userName: "Arden",
+        voucher: "1943174",
+        online: true,
+        ip: "192.168.88.113",
+        connectedSeconds: 473,
+        bytesText: "1479.1 KiB/2.6 MiB",
+        remainingText: "2.92 GB / 5.00 GB",
+        sessionState: "Active",
+        refreshText: "Device Local"
+      };
+
+      const hs = Object.assign({}, statusDefaults, window.hotspotStatus || {});
+      let connSec = hs.connectedSeconds;
+      let isOnline = Boolean(hs.online);
+
+      function fmtShortDuration(totalSec) {
+        const s = Math.max(0, Math.floor(totalSec));
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const rem = s % 60;
+        if (h > 0) {
+          return `${h}h${m}m${rem}s`;
+        }
+        return `${m}m${rem}s`;
+      }
+
+      function renderStatusCard() {
+        document.getElementById("wifiBrandLabel").textContent = hs.brand;
+        document.getElementById("greetingHeading").textContent = `Hi, ${hs.userName}!`;
+        document.getElementById("voucherVal").textContent = hs.voucher;
+        document.getElementById("ipDisplay").textContent = hs.ip;
+        document.getElementById("connectedDisplay").textContent = fmtShortDuration(connSec);
+        document.getElementById("bytesDisplay").textContent = hs.bytesText;
+        document.getElementById("remainingDisplay").textContent = hs.remainingText;
+        document.getElementById("sessionStateVal").textContent = isOnline ? hs.sessionState : "Logged Out";
+        document.getElementById("refreshIntervalVal").textContent = hs.refreshText;
+
+        const badge = document.getElementById("onlineBadge");
+        const label = document.getElementById("onlineLabel");
+        if (isOnline) {
+          badge.classList.remove("is-offline");
+          label.textContent = "Online";
+        } else {
+          badge.classList.add("is-offline");
+          label.textContent = "Offline";
+        }
+      }
+
+      renderStatusCard();
+
+      setInterval(function () {
+        if (isOnline) {
+          connSec += 1;
+          document.getElementById("connectedDisplay").textContent = fmtShortDuration(connSec);
+        }
+      }, 1000);
+
+      const statusScreen = document.getElementById("statusScreen");
+      const mapScreen = document.getElementById("mapScreen");
+
+      const fallbackCenter = [11.3167, 124.9667];
+
+      function loadSavedState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.lat === "number" && typeof parsed.lon === "number") {
+            return parsed;
+          }
+        } catch (e) {}
+        return null;
+      }
+
+      const saved = loadSavedState();
+      const vessel = {
+        hasFix: Boolean(saved),
+        lat: saved ? saved.lat : fallbackCenter[0],
+        lon: saved ? saved.lon : fallbackCenter[1],
+        prevLat: saved && typeof saved.prevLat === "number" ? saved.prevLat : null,
+        prevLon: saved && typeof saved.prevLon === "number" ? saved.prevLon : null,
+        track: saved && Array.isArray(saved.track) ? saved.track : []
+      };
+
+      function saveState() {
+        if (!vessel.hasFix) return;
+        try {
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+              lat: vessel.lat,
+              lon: vessel.lon,
+              prevLat: vessel.prevLat,
+              prevLon: vessel.prevLon,
+              track: vessel.track.slice(-100)
+            })
+          );
+        } catch (e) {}
+      }
+
+      function fmtLat(lat) {
+        return `${Math.abs(lat).toFixed(4)}°${lat >= 0 ? "N" : "S"}`;
+      }
+
+      function fmtLon(lon) {
+        return `${Math.abs(lon).toFixed(4)}°${lon >= 0 ? "E" : "W"}`;
+      }
+
+      function renderCoords() {
+        const curEl = document.getElementById("currentCoordText");
+        const lastEl = document.getElementById("lastCoordText");
+
+        if (vessel.hasFix) {
+          curEl.innerHTML = `${fmtLat(vessel.lat)},<br />${fmtLon(vessel.lon)}`;
+        } else {
+          curEl.innerHTML = "Waiting for<br />phone GPS...";
+        }
+
+        if (typeof vessel.prevLat === "number" && typeof vessel.prevLon === "number") {
+          lastEl.innerHTML = `${fmtLat(vessel.prevLat)},<br />${fmtLon(vessel.prevLon)}`;
+        } else {
+          lastEl.innerHTML = "No previous<br />fix yet";
+        }
+      }
+
+      renderCoords();
+
+      const map = L.map("map", {
+        center: [vessel.lat, vessel.lon],
+        zoom: vessel.hasFix ? 11 : 7,
+        minZoom: 2,
+        maxZoom: 18,
+        worldCopyJump: true
+      });
+
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors"
+      }).addTo(map);
+
+      const restrictedZones = [
+        {
+          name: "Restricted Zone A (Placeholder)",
+          coords: [
+            [39.9, 116.3],
+            [40.2, 121.5],
+            [31.2, 122.0],
+            [22.3, 114.1],
+            [23.1, 106.7],
+            [34.2, 108.9]
+          ]
+        },
+        {
+          name: "Restricted Zone B (Placeholder)",
+          coords: [
+            [28.6, 77.2],
+            [26.8, 88.4],
+            [19.0, 72.8],
+            [13.0, 80.2]
+          ]
+        }
+      ];
+
+      const starlinkLayer = L.layerGroup();
+      restrictedZones.forEach((z) => {
+        L.polygon(z.coords, {
+          color: "#ef4444",
+          weight: 2,
+          fillColor: "#ef4444",
+          fillOpacity: 0.16
+        })
+          .bindPopup(`<strong>${z.name}</strong><br />Starlink restricted zone`)
+          .addTo(starlinkLayer);
+      });
+      starlinkLayer.addTo(map);
+
+      const currentPin = L.circleMarker([vessel.lat, vessel.lon], {
+        radius: 8,
+        color: "#ffffff",
+        weight: 2.5,
+        fillColor: "#2563eb",
+        fillOpacity: 1
+      }).bindPopup("Current Phone Position");
+
+      const lastPin = L.circleMarker([vessel.lat, vessel.lon], {
+        radius: 7,
+        color: "#ffffff",
+        weight: 2.5,
+        fillColor: "#f59e0b",
+        fillOpacity: 1
+      }).bindPopup("Last Phone Position");
+
+      const trackPolyline = L.polyline(vessel.track, {
+        color: "#2563eb",
+        weight: 3,
+        dashArray: "7, 5",
+        opacity: 0.92
+      }).addTo(map);
+
+      function syncMapLayers(recenter) {
+        if (vessel.hasFix) {
+          currentPin.setLatLng([vessel.lat, vessel.lon]);
+          if (!map.hasLayer(currentPin)) {
+            currentPin.addTo(map);
+          }
+          if (recenter) {
+            map.setView([vessel.lat, vessel.lon], Math.max(map.getZoom(), 11));
+          }
+        } else if (map.hasLayer(currentPin)) {
+          map.removeLayer(currentPin);
+        }
+
+        if (typeof vessel.prevLat === "number" && typeof vessel.prevLon === "number") {
+          lastPin.setLatLng([vessel.prevLat, vessel.prevLon]);
+          if (!map.hasLayer(lastPin)) {
+            lastPin.addTo(map);
+          }
+        } else if (map.hasLayer(lastPin)) {
+          map.removeLayer(lastPin);
+        }
+
+        trackPolyline.setLatLngs(vessel.track);
+      }
+
+      syncMapLayers(false);
+
+      const mapSubText = document.getElementById("mapSubText");
+      if (vessel.hasFix) {
+        mapSubText.textContent = "Saved local fix loaded • Tap Locate for fresh GPS";
+      }
+
+      function recordPhonePosition(lat, lon, accuracyMeters, recenter) {
+        const moved =
+          !vessel.hasFix ||
+          Math.abs(lat - vessel.lat) > 0.00005 ||
+          Math.abs(lon - vessel.lon) > 0.00005;
+
+        if (vessel.hasFix && moved) {
+          vessel.prevLat = vessel.lat;
+          vessel.prevLon = vessel.lon;
+        }
+
+        vessel.hasFix = true;
+        vessel.lat = lat;
+        vessel.lon = lon;
+
+        if (moved) {
+          const lastPt = vessel.track[vessel.track.length - 1];
+          if (!lastPt || lastPt[0] !== lat || lastPt[1] !== lon) {
+            vessel.track.push([lat, lon]);
+            if (vessel.track.length > 100) {
+              vessel.track = vessel.track.slice(-100);
+            }
+          }
+        }
+
+        saveState();
+        renderCoords();
+        syncMapLayers(recenter);
+        mapSubText.textContent =
+          accuracyMeters > 0
+            ? `Phone GPS locked (±${accuracyMeters} m)`
+            : "Phone GPS locked";
+      }
+
+      function requestSingleFix(recenter) {
+        if (!navigator.geolocation) {
+          mapSubText.textContent = "Browser does not support GPS Geolocation";
+          return;
+        }
+        if (!window.isSecureContext && window.location.hostname !== "localhost") {
+          mapSubText.textContent = "Phone GPS requires an https:// page";
+          return;
+        }
+        mapSubText.textContent = "Reading phone GPS...";
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            const lat = Number(pos.coords.latitude);
+            const lon = Number(pos.coords.longitude);
+            const acc = Math.round(Number(pos.coords.accuracy) || 0);
+            if (Number.isNaN(lat) || Number.isNaN(lon)) return;
+            recordPhonePosition(lat, lon, acc, recenter);
+            if (recenter) {
+              currentPin.openPopup();
+            }
+          },
+          function (err) {
+            if (err && err.code === 1) {
+              mapSubText.textContent = "Location permission denied on phone";
+            } else if (err && err.code === 2) {
+              mapSubText.textContent = "GPS unavailable — move near window or open deck";
+            } else {
+              mapSubText.textContent = "GPS timed out — tap Locate to try again";
+            }
+          },
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 12000 }
+        );
+      }
+
+      let watchId = null;
+      const liveTrackBtn = document.getElementById("liveTrackBtn");
+
+      function setLiveTracking(active) {
+        if (active) {
+          if (!navigator.geolocation) {
+            mapSubText.textContent = "Browser does not support GPS Geolocation";
+            return;
+          }
+          if (!window.isSecureContext && window.location.hostname !== "localhost") {
+            mapSubText.textContent = "Live phone GPS requires an https:// page";
+            return;
+          }
+          mapSubText.textContent = "Starting live phone GPS...";
+          watchId = navigator.geolocation.watchPosition(
+            function (pos) {
+              const lat = Number(pos.coords.latitude);
+              const lon = Number(pos.coords.longitude);
+              const acc = Math.round(Number(pos.coords.accuracy) || 0);
+              if (Number.isNaN(lat) || Number.isNaN(lon)) return;
+              recordPhonePosition(lat, lon, acc, true);
+            },
+            function (err) {
+              if (err && err.code === 1) {
+                mapSubText.textContent = "Location permission denied on phone";
+                setLiveTracking(false);
+              } else if (err && err.code === 2) {
+                mapSubText.textContent = "GPS signal weak — move near window or deck";
+              } else {
+                mapSubText.textContent = "Waiting for GPS satellite fix...";
+              }
+            },
+            { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+          );
+          liveTrackBtn.classList.add("is-active");
+          liveTrackBtn.setAttribute("aria-pressed", "true");
+          liveTrackBtn.textContent = "Live GPS: On";
+        } else {
+          if (watchId !== null && navigator.geolocation) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+          }
+          liveTrackBtn.classList.remove("is-active");
+          liveTrackBtn.setAttribute("aria-pressed", "false");
+          liveTrackBtn.textContent = "Live GPS: Off";
+          mapSubText.textContent = "Live GPS paused • Tap Locate for a single fix";
+        }
+      }
+
+      liveTrackBtn.addEventListener("click", function () {
+        setLiveTracking(watchId === null);
+      });
+
+      function showMapScreen() {
+        statusScreen.classList.add("is-hidden");
+        mapScreen.classList.add("is-visible");
+        window.scrollTo({ top: 0, behavior: "instant" });
+        setTimeout(function () {
+          map.invalidateSize();
+          map.setView([vessel.lat, vessel.lon], map.getZoom());
+        }, 60);
+        if (!vessel.hasFix) {
+          requestSingleFix(true);
+        }
+      }
+
+      function showStatusScreen() {
+        mapScreen.classList.remove("is-visible");
+        statusScreen.classList.remove("is-hidden");
+        window.scrollTo({ top: 0, behavior: "instant" });
+      }
+
+      document.getElementById("openTrackMapBtn").addEventListener("click", showMapScreen);
+      document.getElementById("backToStatusBtn").addEventListener("click", showStatusScreen);
+
+      const drawer = document.getElementById("usageDrawer");
+      const summaryText = document.getElementById("usageSummaryText");
+
+      document.getElementById("dailyUsageBtn").addEventListener("click", function () {
+        drawer.classList.toggle("is-open");
+        summaryText.textContent = `Voucher ${hs.voucher} • ${hs.bytesText} transferred • ${hs.remainingText} remaining.`;
+      });
+
+      document.getElementById("historyBtn").addEventListener("click", function () {
+        drawer.classList.add("is-open");
+        summaryText.textContent = `Current IP ${hs.ip} assigned on ${hs.brand} (${fmtShortDuration(connSec)} connected).`;
+      });
+
+      document.getElementById("logOutBtn").addEventListener("click", function () {
+        isOnline = !isOnline;
+        renderStatusCard();
+        drawer.classList.add("is-open");
+        summaryText.textContent = isOnline
+          ? `Session restored for voucher ${hs.voucher}.`
+          : `Session paused/logged out for voucher ${hs.voucher}.`;
+      });
+
+      let overlayActive = true;
+      const overlayToggleBtn = document.getElementById("toggleStarlinkBtn");
+      overlayToggleBtn.addEventListener("click", function () {
+        overlayActive = !overlayActive;
+        if (overlayActive) {
+          starlinkLayer.addTo(map);
+          overlayToggleBtn.classList.remove("is-off");
+          overlayToggleBtn.setAttribute("aria-pressed", "true");
+        } else {
+          map.removeLayer(starlinkLayer);
+          overlayToggleBtn.classList.add("is-off");
+          overlayToggleBtn.setAttribute("aria-pressed", "false");
+        }
+      });
+
+      document.getElementById("locateMapBtn").addEventListener("click", function () {
+        requestSingleFix(true);
+      });
+
+      document.getElementById("fitTrackMapBtn").addEventListener("click", function () {
+        if (!vessel.hasFix && vessel.track.length === 0) {
+          requestSingleFix(true);
+          return;
+        }
+        const bounds = L.latLngBounds(vessel.track.length > 0 ? vessel.track : [[vessel.lat, vessel.lon]]);
+        if (vessel.hasFix) {
+          bounds.extend([vessel.lat, vessel.lon]);
+        }
+        if (typeof vessel.prevLat === "number" && typeof vessel.prevLon === "number") {
+          bounds.extend([vessel.prevLat, vessel.prevLon]);
+        }
+        if (bounds.isValid()) {
+          map.fitBounds(bounds.pad(0.25));
+        }
+      });
+
+      document.getElementById("clearTrackBtn").addEventListener("click", function () {
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (e) {}
+        vessel.hasFix = false;
+        vessel.prevLat = null;
+        vessel.prevLon = null;
+        vessel.track = [];
+        renderCoords();
+        syncMapLayers(false);
+        mapSubText.textContent = "Saved local track cleared • Tap Locate for fresh GPS";
+      });
+    })();
+  </script>
+</body>
+</html>
